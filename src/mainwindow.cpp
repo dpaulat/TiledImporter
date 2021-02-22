@@ -3,8 +3,11 @@
 
 #include <QDropEvent>
 #include <QFileDialog>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QProgressBar>
 #include <QSet>
 #include <QStyle>
 
@@ -20,15 +23,19 @@ MainWindow::MainWindow(QWidget* parent) :
    ui->imageLabel->installEventFilter(this);
    ui->imageLabel->setAcceptDrops(true);
 
-   statusLabel_ = new QLabel();
-   ui->statusbar->addWidget(statusLabel_);
+   progressBar_ = new QProgressBar(this);
+   progressBar_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+   progressBar_->setMaximumHeight(ui->iterationsLabel->height());
+   progressBar_->setTextVisible(false);
+   progressBar_->setVisible(false);
+   ui->statusbar->addPermanentWidget(progressBar_);
 }
 
 MainWindow::~MainWindow()
 {
    delete ui;
    delete image_;
-   delete statusLabel_;
+   delete progressBar_;
 }
 
 bool MainWindow::eventFilter(QObject* object, QEvent* event)
@@ -89,15 +96,11 @@ void MainWindow::on_importImageButton_clicked()
 
 void MainWindow::on_transformButton_clicked()
 {
-   // Do something
    QImage* newImage = new QImage(*image_);
    QImage* oldImage = image_;
 
    const QSize size(newImage->size());
-
-   const int aliveNeighborsAllowed = ui->aliveNeighborsBox->value();
-   const int deadNeighborsAllowed  = ui->deadNeighborsBox->value();
-   const int iterations            = ui->iterationsSpinBox->value();
+   const int   iterations = ui->iterationsSpinBox->value();
 
    QColor newAliveColor(aliveColor_);
    QColor newDeadColor(deadColor_);
@@ -108,42 +111,55 @@ void MainWindow::on_transformButton_clicked()
       newDeadColor  = aliveColor_;
    }
 
-   for (int i = 0; i < iterations; i++)
-   {
-      for (int y = 0; y < size.height(); y++)
-      {
-         for (int x = 0; x < size.width(); x++)
-         {
-            int aliveCells = GetMooreNeighborsAlive(*image_, x, y);
-            if (image_->pixelColor(x, y) == aliveColor_)
-            {
-               if (aliveCells < aliveNeighborsAllowed)
-               {
-                  newImage->setPixelColor(x, y, newDeadColor);
-               }
-               else
-               {
-                  newImage->setPixelColor(x, y, newAliveColor);
-               }
-            }
-            else
-            {
-               if (aliveCells > deadNeighborsAllowed)
-               {
-                  newImage->setPixelColor(x, y, newAliveColor);
-               }
-               else
-               {
-                  newImage->setPixelColor(x, y, newDeadColor);
-               }
-            }
-         }
-      }
-   }
+   QPromise<void>        promise;
+   QFuture<void>         future        = promise.future();
+   QFutureWatcher<void>* futureWatcher = new QFutureWatcher<void>();
 
-   ui->imageLabel->setPixmap(QPixmap::fromImage(*newImage));
-   image_ = newImage;
-   delete oldImage;
+   futureWatcher->setFuture(future);
+
+   progressBar_->setRange(0, iterations * size.height());
+   progressBar_->setValue(0);
+   progressBar_->setVisible(true);
+
+   ui->imageGroupBox->setEnabled(false);
+   ui->cellularGroupBox->setEnabled(false);
+
+   QThread* thread = QThread::create(
+      [=](QPromise<void> promise) {
+         promise.start();
+         TransformImage(
+            promise, newImage, newAliveColor, newDeadColor, iterations);
+         promise.finish();
+      },
+      std::move(promise));
+
+   connect(futureWatcher,
+           &QFutureWatcher<void>::progressValueChanged,
+           this,
+           [=](int progressValue) {
+              progressBar_->setValue(progressValue);
+              progressBar_->update();
+           });
+   connect(futureWatcher, &QFutureWatcher<void>::finished, this, [=]() {
+      qDebug() << "Transform complete";
+      ui->statusbar->showMessage(tr("Image transform complete!"));
+
+      progressBar_->setVisible(false);
+
+      ui->imageLabel->setPixmap(QPixmap::fromImage(*newImage));
+      image_ = newImage;
+      delete oldImage;
+
+      ui->imageGroupBox->setEnabled(true);
+      ui->cellularGroupBox->setEnabled(true);
+
+      delete thread;
+      delete futureWatcher;
+   });
+
+   qDebug() << "Starting transform...";
+   ui->statusbar->showMessage(tr("Transforming image..."));
+   thread->start();
 }
 
 int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
@@ -205,14 +221,17 @@ void MainWindow::OpenImage(const QString& path)
    {
       QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
       ui->cellularAutomataOption->setIcon(icon);
+      ui->cellularAutomataOption->setStatusTip(
+         tr("Image contains more than two colors"));
       ui->cellularAutomataOption->setToolTip(
-         "Image contains more than two colors");
+         tr("Image contains more than two colors"));
       ui->cellularAutomataOption->setChecked(false);
       ui->cellularAutomataOption->setCheckable(false);
    }
    else
    {
       ui->cellularAutomataOption->setIcon(QIcon());
+      ui->cellularAutomataOption->setStatusTip("");
       ui->cellularAutomataOption->setToolTip("");
       ui->cellularAutomataOption->setCheckable(true);
 
@@ -250,8 +269,9 @@ void MainWindow::OpenImage(const QString& path)
    ui->saveImageButton->setEnabled(true);
    ui->transformGroupBox->setEnabled(true);
 
-   statusLabel_->setText("Image Size: " + QString::number(size.width()) + "x" +
-                         QString::number(size.height()));
+   ui->statusbar->showMessage(tr("Loaded image with size ") +
+                              QString::number(size.width()) + "x" +
+                              QString::number(size.height()));
 }
 
 void MainWindow::SetAliveDeadColors(QColor aliveColor, QColor deadColor)
@@ -263,6 +283,59 @@ void MainWindow::SetAliveDeadColors(QColor aliveColor, QColor deadColor)
       "QLabel { background-color: " + aliveColor_.name() + "; }");
    ui->deadColorBox->setStyleSheet(
       "QLabel { background-color: " + deadColor_.name() + "; }");
+}
+
+void MainWindow::TransformImage(QPromise<void>& promise,
+                                QImage*         image,
+                                const QColor&   newAliveColor,
+                                const QColor&   newDeadColor,
+                                size_t          iterations)
+{
+   const QSize size(image->size());
+   const int   aliveNeighborsAllowed = ui->aliveNeighborsBox->value();
+   const int   deadNeighborsAllowed  = ui->deadNeighborsBox->value();
+
+   int progress = 0;
+
+   for (size_t i = 0; i < iterations; i++)
+   {
+      QImage* lastImage = new QImage(*image);
+
+      for (int y = 0; y < size.height(); y++)
+      {
+         // Update progress at the start of each row
+         promise.setProgressValue(++progress);
+
+         for (int x = 0; x < size.width(); x++)
+         {
+            int aliveCells = GetMooreNeighborsAlive(*lastImage, x, y);
+            if (lastImage->pixelColor(x, y) == aliveColor_)
+            {
+               if (aliveCells < aliveNeighborsAllowed)
+               {
+                  image->setPixelColor(x, y, newDeadColor);
+               }
+               else
+               {
+                  image->setPixelColor(x, y, newAliveColor);
+               }
+            }
+            else
+            {
+               if (aliveCells > deadNeighborsAllowed)
+               {
+                  image->setPixelColor(x, y, newAliveColor);
+               }
+               else
+               {
+                  image->setPixelColor(x, y, newDeadColor);
+               }
+            }
+         }
+      }
+
+      delete lastImage;
+   }
 }
 
 static double luminance(const QColor& color)

@@ -3,8 +3,10 @@
 
 #include <QMainWindow>
 
+#include <QColor>
 #include <QLabel>
-#include <QRgb>
+#include <QProgressBar>
+#include <QPromise>
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -34,7 +36,8 @@ private:
    Ui::MainWindow* ui;
 
    QImage* image_;
-   QLabel* statusLabel_;
+
+   QProgressBar* progressBar_;
 
    QColor aliveColor_;
    QColor deadColor_;
@@ -42,5 +45,10 @@ private:
    int  GetMooreNeighborsAlive(const QImage& image, int x, int y);
    void OpenImage(const QString& path);
    void SetAliveDeadColors(QColor aliveColor, QColor deadColor);
+   void TransformImage(QPromise<void>& promise,
+                       QImage*         image,
+                       const QColor&   newAliveColor,
+                       const QColor&   newDeadColor,
+                       size_t          iterations);
 };
 #endif // MAINWINDOW_H
