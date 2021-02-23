@@ -16,32 +16,179 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QScrollArea" name="scrollArea">
-      <property name="widgetResizable">
-       <bool>true</bool>
+     <widget class="QFrame" name="centerPane">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
       </property>
-      <widget class="QWidget" name="scrollAreaWidgetContents">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>0</y>
-         <width>510</width>
-         <height>500</height>
-        </rect>
-       </property>
-       <layout class="QGridLayout" name="gridLayout_2">
-        <item row="1" column="0">
-         <widget class="QLabel" name="imageLabel">
-          <property name="text">
-           <string/>
+      <property name="frameShadow">
+       <enum>QFrame::Sunken</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_7">
+       <item>
+        <widget class="QScrollArea" name="scrollArea">
+         <property name="frameShape">
+          <enum>QFrame::NoFrame</enum>
+         </property>
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContents">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>492</width>
+            <height>482</height>
+           </rect>
           </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="1" column="0">
+            <widget class="QFrame" name="imageControlFrame">
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Sunken</enum>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout">
+              <item>
+               <widget class="QToolButton" name="originalSizeButton">
+                <property name="toolTip">
+                 <string>Original Size</string>
+                </property>
+                <property name="statusTip">
+                 <string>Original Size</string>
+                </property>
+                <property name="text">
+                 <string>...</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/resources.qrc">
+                  <normaloff>:/icons/aspect_ratio-black-18dp.svg</normaloff>:/icons/aspect_ratio-black-18dp.svg</iconset>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QToolButton" name="fitScreenButton">
+                <property name="toolTip">
+                 <string>Fit to Screen</string>
+                </property>
+                <property name="statusTip">
+                 <string>Fit to Screen</string>
+                </property>
+                <property name="text">
+                 <string>...</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/resources.qrc">
+                  <normaloff>:/icons/fit_screen-black-18dp.svg</normaloff>:/icons/fit_screen-black-18dp.svg</iconset>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QToolButton" name="zoomOutButton">
+                <property name="toolTip">
+                 <string>Zoom Out</string>
+                </property>
+                <property name="statusTip">
+                 <string>Zoom Out</string>
+                </property>
+                <property name="text">
+                 <string>...</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/resources.qrc">
+                  <normaloff>:/icons/zoom_out-black-18dp.svg</normaloff>:/icons/zoom_out-black-18dp.svg</iconset>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSlider" name="zoomSlider">
+                <property name="toolTip">
+                 <string>Zoom</string>
+                </property>
+                <property name="statusTip">
+                 <string>Zoom</string>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QToolButton" name="zoomInButton">
+                <property name="toolTip">
+                 <string>Zoom In</string>
+                </property>
+                <property name="statusTip">
+                 <string>Zoom In</string>
+                </property>
+                <property name="text">
+                 <string>...</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/resources.qrc">
+                  <normaloff>:/icons/zoom_in-black-18dp.svg</normaloff>:/icons/zoom_in-black-18dp.svg</iconset>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QToolButton" name="zoomValueButton">
+                <property name="toolTip">
+                 <string>Set Zoom</string>
+                </property>
+                <property name="statusTip">
+                 <string>Set Zoom</string>
+                </property>
+                <property name="text">
+                 <string>100%</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_2">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="imageSizeLabel">
+                <property name="text">
+                 <string>Image Size: </string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QGraphicsView" name="imageView">
+             <property name="styleSheet">
+              <string notr="true">QGraphicsView { background: transparent; }</string>
+             </property>
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Plain</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
-        </item>
-       </layout>
-      </widget>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
    </layout>
@@ -344,7 +491,7 @@
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>174</height>
+         <height>164</height>
         </size>
        </property>
       </spacer>
@@ -365,6 +512,8 @@
    <widget class="QWidget" name="bottomDockContents"/>
   </widget>
  </widget>
- <resources/>
+ <resources>
+  <include location="../res/resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

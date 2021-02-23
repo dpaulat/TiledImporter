@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/aspect_ratio-black-18dp.svg</file>
+        <file>icons/fit_screen-black-18dp.svg</file>
+        <file>icons/zoom_in-black-18dp.svg</file>
+        <file>icons/zoom_out-black-18dp.svg</file>
+    </qresource>
+</RCC>

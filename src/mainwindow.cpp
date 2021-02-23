@@ -5,13 +5,42 @@
 #include <QFileDialog>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QGraphicsSceneDragDropEvent>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProgressBar>
 #include <QSet>
 #include <QStyle>
+#include <QToolBar>
 
 static double luminance(const QColor& color);
+
+class ImageGraphicsScene : public QGraphicsScene
+{
+private:
+   MainWindow* mainWindow_;
+
+public:
+   ImageGraphicsScene(MainWindow* parent = nullptr) :
+       QGraphicsScene(parent), mainWindow_(parent)
+   {
+   }
+
+   void dragMoveEvent(QGraphicsSceneDragDropEvent* event)
+   {
+      event->acceptProposedAction();
+   }
+
+   void dropEvent(QGraphicsSceneDragDropEvent* event)
+   {
+      if (event->mimeData()->hasUrls())
+      {
+         QString path = event->mimeData()->urls().first().toLocalFile();
+         qDebug("Dropped file onto scene: " + path.toUtf8());
+         mainWindow_->OpenImage(path);
+      }
+   }
+};
 
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent), ui(new Ui::MainWindow), image_(nullptr)
@@ -19,9 +48,14 @@ MainWindow::MainWindow(QWidget* parent) :
    ui->setupUi(this);
    ui->bottomDock->setVisible(false);
    ui->cellularGroupBox->setVisible(false);
+   ui->imageControlFrame->setVisible(false);
 
-   ui->imageLabel->installEventFilter(this);
-   ui->imageLabel->setAcceptDrops(true);
+   ui->imageView->installEventFilter(this);
+   ui->imageView->setAcceptDrops(true);
+
+   imageScene_ = new ImageGraphicsScene(this);
+
+   ui->imageView->setScene(imageScene_);
 
    progressBar_ = new QProgressBar(this);
    progressBar_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
@@ -35,17 +69,24 @@ MainWindow::~MainWindow()
 {
    delete ui;
    delete image_;
+   delete imageScene_;
    delete progressBar_;
 }
 
 bool MainWindow::eventFilter(QObject* object, QEvent* event)
 {
-   if (object == ui->imageLabel)
+   if (object == ui->imageView)
    {
       if (event->type() == QEvent::DragEnter)
       {
          QDragEnterEvent* dee = static_cast<QDragEnterEvent*>(event);
          dee->acceptProposedAction();
+         return true;
+      }
+      else if (event->type() == QEvent::DragMove)
+      {
+         QDragMoveEvent* dme = static_cast<QDragMoveEvent*>(event);
+         dme->acceptProposedAction();
          return true;
       }
       else if (event->type() == QEvent::Drop)
@@ -60,9 +101,21 @@ bool MainWindow::eventFilter(QObject* object, QEvent* event)
             return true;
          }
       }
+      else if (event->type() == QEvent::Resize)
+      {
+         FitToScreen(ui->fitScreenButton->isChecked());
+         return true;
+      }
    }
 
    return false;
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+   Q_UNUSED(event)
+
+   FitToScreen(ui->fitScreenButton->isChecked());
 }
 
 void MainWindow::on_cellularAutomataOption_toggled(bool checked)
@@ -78,6 +131,11 @@ void MainWindow::on_colorReverseButton_clicked()
 void MainWindow::on_exitButton_clicked()
 {
    QApplication::quit();
+}
+
+void MainWindow::on_fitScreenButton_toggled(bool checked)
+{
+   FitToScreen(checked);
 }
 
 void MainWindow::on_importImageButton_clicked()
@@ -97,7 +155,6 @@ void MainWindow::on_importImageButton_clicked()
 void MainWindow::on_transformButton_clicked()
 {
    QImage* newImage = new QImage(*image_);
-   QImage* oldImage = image_;
 
    const QSize size(newImage->size());
    const int   iterations = ui->iterationsSpinBox->value();
@@ -142,13 +199,11 @@ void MainWindow::on_transformButton_clicked()
            });
    connect(futureWatcher, &QFutureWatcher<void>::finished, this, [=]() {
       qDebug() << "Transform complete";
-      ui->statusbar->showMessage(tr("Image transform complete!"));
+      ui->statusbar->showMessage(tr("Image transform complete"));
 
       progressBar_->setVisible(false);
 
-      ui->imageLabel->setPixmap(QPixmap::fromImage(*newImage));
-      image_ = newImage;
-      delete oldImage;
+      UpdateImage(newImage);
 
       ui->imageGroupBox->setEnabled(true);
       ui->cellularGroupBox->setEnabled(true);
@@ -160,6 +215,21 @@ void MainWindow::on_transformButton_clicked()
    qDebug() << "Starting transform...";
    ui->statusbar->showMessage(tr("Transforming image..."));
    thread->start();
+}
+
+void MainWindow::FitToScreen(bool fitEnabled)
+{
+   if (fitEnabled)
+   {
+      ui->imageView->update();
+      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      ui->imageView->fitInView(imageScene_->sceneRect(), Qt::KeepAspectRatio);
+   }
+   {
+      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+   }
 }
 
 int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
@@ -194,7 +264,6 @@ int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
 void MainWindow::OpenImage(const QString& path)
 {
    QImage*    newImage = new QImage(path);
-   QImage*    oldImage = image_;
    QImage     image(path);
    QSet<QRgb> colors;
 
@@ -262,9 +331,13 @@ void MainWindow::OpenImage(const QString& path)
       SetAliveDeadColors(aliveColor, deadColor);
    }
 
-   ui->imageLabel->setPixmap(QPixmap::fromImage(*newImage));
-   image_ = newImage;
-   delete oldImage;
+   ui->imageSizeLabel->setText(tr("Image size: ") +
+                               QString::number(size.width()) + "x" +
+                               QString::number(size.height()));
+
+   UpdateImage(newImage);
+
+   ui->imageControlFrame->setVisible(true);
 
    ui->saveImageButton->setEnabled(true);
    ui->transformGroupBox->setEnabled(true);
@@ -336,6 +409,16 @@ void MainWindow::TransformImage(QPromise<void>& promise,
 
       delete lastImage;
    }
+}
+
+void MainWindow::UpdateImage(QImage* newImage)
+{
+   ui->imageView->scene()->clear();
+   ui->imageView->scene()->addPixmap(QPixmap::fromImage(*newImage));
+
+   QImage* oldImage = image_;
+   image_           = newImage;
+   delete oldImage;
 }
 
 static double luminance(const QColor& color)
