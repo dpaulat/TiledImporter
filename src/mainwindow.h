@@ -26,9 +26,6 @@ public:
    MainWindow(QWidget* parent = nullptr);
    ~MainWindow();
 
-protected:
-   void resizeEvent(QResizeEvent* event) override;
-
 public:
    bool eventFilter(QObject* object, QEvent* event) override;
 
@@ -42,6 +39,8 @@ private slots:
    void on_importImageButton_clicked();
    void on_transformButton_clicked();
 
+   void on_originalSizeButton_toggled(bool checked);
+
 private:
    Ui::MainWindow* ui;
 
@@ -53,8 +52,10 @@ private:
    QColor aliveColor_;
    QColor deadColor_;
 
-   void FitToScreen(bool fitEnabled);
+   bool resizeInProgress_;
+
    int  GetMooreNeighborsAlive(const QImage& image, int x, int y);
+   void ResizeImage();
    void SetAliveDeadColors(QColor aliveColor, QColor deadColor);
    void TransformImage(QPromise<void>& promise,
                        QImage*         image,

@@ -42,6 +42,19 @@
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_2">
+           <item row="2" column="0">
+            <widget class="QGraphicsView" name="imageView">
+             <property name="styleSheet">
+              <string notr="true">QGraphicsView { background: transparent; }</string>
+             </property>
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Plain</enum>
+             </property>
+            </widget>
+           </item>
            <item row="1" column="0">
             <widget class="QFrame" name="imageControlFrame">
              <property name="frameShape">
@@ -65,6 +78,9 @@
                 <property name="icon">
                  <iconset resource="../res/resources.qrc">
                   <normaloff>:/icons/aspect_ratio-black-18dp.svg</normaloff>:/icons/aspect_ratio-black-18dp.svg</iconset>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -169,19 +185,6 @@
                </widget>
               </item>
              </layout>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QGraphicsView" name="imageView">
-             <property name="styleSheet">
-              <string notr="true">QGraphicsView { background: transparent; }</string>
-             </property>
-             <property name="frameShape">
-              <enum>QFrame::NoFrame</enum>
-             </property>
-             <property name="frameShadow">
-              <enum>QFrame::Plain</enum>
-             </property>
             </widget>
            </item>
           </layout>

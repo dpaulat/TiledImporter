@@ -43,7 +43,10 @@ public:
 };
 
 MainWindow::MainWindow(QWidget* parent) :
-    QMainWindow(parent), ui(new Ui::MainWindow), image_(nullptr)
+    QMainWindow(parent),
+    ui(new Ui::MainWindow),
+    image_(nullptr),
+    resizeInProgress_(false)
 {
    ui->setupUi(this);
    ui->bottomDock->setVisible(false);
@@ -103,19 +106,12 @@ bool MainWindow::eventFilter(QObject* object, QEvent* event)
       }
       else if (event->type() == QEvent::Resize)
       {
-         FitToScreen(ui->fitScreenButton->isChecked());
+         ResizeImage();
          return true;
       }
    }
 
    return false;
-}
-
-void MainWindow::resizeEvent(QResizeEvent* event)
-{
-   Q_UNUSED(event)
-
-   FitToScreen(ui->fitScreenButton->isChecked());
 }
 
 void MainWindow::on_cellularAutomataOption_toggled(bool checked)
@@ -135,7 +131,19 @@ void MainWindow::on_exitButton_clicked()
 
 void MainWindow::on_fitScreenButton_toggled(bool checked)
 {
-   FitToScreen(checked);
+   if (!resizeInProgress_)
+   {
+      resizeInProgress_ = true;
+
+      if (checked)
+      {
+         ui->originalSizeButton->setChecked(false);
+      }
+
+      ResizeImage();
+
+      resizeInProgress_ = false;
+   }
 }
 
 void MainWindow::on_importImageButton_clicked()
@@ -150,6 +158,23 @@ void MainWindow::on_importImageButton_clicked()
 
    qDebug("Opened image: " + path.toUtf8());
    OpenImage(path);
+}
+
+void MainWindow::on_originalSizeButton_toggled(bool checked)
+{
+   if (!resizeInProgress_)
+   {
+      resizeInProgress_ = true;
+
+      if (checked)
+      {
+         ui->fitScreenButton->setChecked(false);
+      }
+
+      ResizeImage();
+
+      resizeInProgress_ = false;
+   }
 }
 
 void MainWindow::on_transformButton_clicked()
@@ -215,21 +240,6 @@ void MainWindow::on_transformButton_clicked()
    qDebug() << "Starting transform...";
    ui->statusbar->showMessage(tr("Transforming image..."));
    thread->start();
-}
-
-void MainWindow::FitToScreen(bool fitEnabled)
-{
-   if (fitEnabled)
-   {
-      ui->imageView->update();
-      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-      ui->imageView->fitInView(imageScene_->sceneRect(), Qt::KeepAspectRatio);
-   }
-   {
-      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-   }
 }
 
 int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
@@ -345,6 +355,28 @@ void MainWindow::OpenImage(const QString& path)
    ui->statusbar->showMessage(tr("Loaded image with size ") +
                               QString::number(size.width()) + "x" +
                               QString::number(size.height()));
+}
+
+void MainWindow::ResizeImage()
+{
+   qDebug() << "Resizing image";
+
+   if (ui->fitScreenButton->isChecked())
+   {
+      ui->imageView->update();
+      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      ui->imageView->fitInView(imageScene_->sceneRect(), Qt::KeepAspectRatio);
+   }
+   {
+      ui->imageView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+      ui->imageView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+   }
+
+   if (ui->originalSizeButton->isChecked())
+   {
+      ui->imageView->resetTransform();
+   }
 }
 
 void MainWindow::SetAliveDeadColors(QColor aliveColor, QColor deadColor)
