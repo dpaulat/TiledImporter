@@ -37,9 +37,13 @@ private slots:
    void on_exitButton_clicked();
    void on_fitScreenButton_toggled(bool checked);
    void on_importImageButton_clicked();
-   void on_transformButton_clicked();
-
    void on_originalSizeButton_toggled(bool checked);
+   void on_transformButton_clicked();
+   void on_zoomInButton_clicked();
+   void on_zoomOutButton_clicked();
+   void on_zoomSlider_sliderMoved(int position);
+
+   void ImageZoomSelected();
 
 private:
    Ui::MainWindow* ui;
@@ -54,14 +58,16 @@ private:
 
    bool resizeInProgress_;
 
-   int  GetMooreNeighborsAlive(const QImage& image, int x, int y);
-   void ResizeImage();
-   void SetAliveDeadColors(QColor aliveColor, QColor deadColor);
-   void TransformImage(QPromise<void>& promise,
-                       QImage*         image,
-                       const QColor&   newAliveColor,
-                       const QColor&   newDeadColor,
-                       size_t          iterations);
-   void UpdateImage(QImage* newImage);
+   double GetImageScale();
+   int    GetMooreNeighborsAlive(const QImage& image, int x, int y);
+   void   ResizeImage();
+   void   SetAliveDeadColors(QColor aliveColor, QColor deadColor);
+   void   SetImageZoom(int zoom);
+   void   TransformImage(QPromise<void>& promise,
+                         QImage*         image,
+                         const QColor&   newAliveColor,
+                         const QColor&   newDeadColor,
+                         size_t          iterations);
+   void   UpdateImage(QImage* newImage);
 };
 #endif // MAINWINDOW_H

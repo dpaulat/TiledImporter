@@ -13,7 +13,8 @@
 #include <QStyle>
 #include <QToolBar>
 
-static double luminance(const QColor& color);
+static double getScale(const QTransform& t);
+static double getLuminance(const QColor& color);
 
 class ImageGraphicsScene : public QGraphicsScene
 {
@@ -66,6 +67,20 @@ MainWindow::MainWindow(QWidget* parent) :
    progressBar_->setTextVisible(false);
    progressBar_->setVisible(false);
    ui->statusbar->addPermanentWidget(progressBar_);
+
+   QMenu* zoomMenu = new QMenu(this);
+   zoomMenu->addAction("10%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("25%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("50%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("75%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("100%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("150%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("200%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("300%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("400%", this, SLOT(ImageZoomSelected()));
+   zoomMenu->addAction("...", this, SLOT(ImageZoomSelected()));
+
+   ui->zoomValueButton->setMenu(zoomMenu);
 }
 
 MainWindow::~MainWindow()
@@ -242,6 +257,54 @@ void MainWindow::on_transformButton_clicked()
    thread->start();
 }
 
+void MainWindow::on_zoomInButton_clicked()
+{
+   double scale = GetImageScale();
+   int    step  = round(floor(round(scale * 100.0) / 10.0));
+   int    zoom  = (step + 1) * 10;
+   int    max   = ui->zoomSlider->maximum();
+
+   zoom = (zoom > max) ? max : zoom;
+
+   SetImageZoom(zoom);
+}
+
+void MainWindow::on_zoomOutButton_clicked()
+{
+   double scale = GetImageScale();
+   int    step  = round(ceil(round(scale * 100.0) / 10.0));
+   int    zoom  = (step - 1) * 10;
+   int    min   = ui->zoomSlider->minimum();
+
+   zoom = (zoom < min) ? min : zoom;
+
+   SetImageZoom(zoom);
+}
+
+void MainWindow::on_zoomSlider_sliderMoved(int position)
+{
+   SetImageZoom(position);
+}
+
+void MainWindow::ImageZoomSelected()
+{
+   QAction* action = qobject_cast<QAction*>(sender());
+
+   if (action != nullptr)
+   {
+      int zoom = action->text().remove('%').toInt();
+      if (zoom != 0)
+      {
+         SetImageZoom(zoom);
+      }
+   }
+}
+
+double MainWindow::GetImageScale()
+{
+   return getScale(ui->imageView->transform());
+}
+
 int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
 {
    const QSize size(image.size());
@@ -331,7 +394,7 @@ void MainWindow::OpenImage(const QString& path)
          deadColor = 0xFFFFFFFFu;
       }
 
-      if (luminance(deadColor) > luminance(aliveColor))
+      if (getLuminance(deadColor) > getLuminance(aliveColor))
       {
          QColor tempColor(deadColor);
          deadColor  = aliveColor;
@@ -377,6 +440,13 @@ void MainWindow::ResizeImage()
    {
       ui->imageView->resetTransform();
    }
+
+   double scale        = GetImageScale();
+   int    roundedScale = round(scale * 100);
+   ui->zoomValueButton->setText(QString::number(roundedScale) + "%");
+   ui->zoomSlider->setValue(roundedScale);
+
+   qDebug() << "Scale: " << scale;
 }
 
 void MainWindow::SetAliveDeadColors(QColor aliveColor, QColor deadColor)
@@ -388,6 +458,28 @@ void MainWindow::SetAliveDeadColors(QColor aliveColor, QColor deadColor)
       "QLabel { background-color: " + aliveColor_.name() + "; }");
    ui->deadColorBox->setStyleSheet(
       "QLabel { background-color: " + deadColor_.name() + "; }");
+}
+
+void MainWindow::SetImageZoom(int zoom)
+{
+   if (!resizeInProgress_)
+   {
+      resizeInProgress_ = true;
+
+      qDebug() << "Set image zoom: " << zoom;
+
+      ui->fitScreenButton->setChecked(false);
+      ui->originalSizeButton->setChecked(false);
+
+      double scale = zoom / 100.0;
+      ui->imageView->resetTransform();
+      ui->imageView->scale(scale, scale);
+
+      ui->zoomValueButton->setText(QString::number(zoom) + "%");
+      ui->zoomSlider->setValue(zoom);
+
+      resizeInProgress_ = false;
+   }
 }
 
 void MainWindow::TransformImage(QPromise<void>& promise,
@@ -453,7 +545,21 @@ void MainWindow::UpdateImage(QImage* newImage)
    delete oldImage;
 }
 
-static double luminance(const QColor& color)
+static double getLuminance(const QColor& color)
 {
    return 0.2126 * color.red() + 0.7152 * color.green() + 0.0722 * color.blue();
+}
+
+static double getScale(const QTransform& t)
+{
+   // No rotation:
+   // X Scale: t.m11();
+   // Y Scale: t.m12();
+
+   // Rotation:
+   // X Scale: sqrt(t.m11() * t.m11() + t.m12() * t.m12())
+   // Y Scale: sqrt(t.m21() * t.m21() + t.m22() * t.m22())
+
+   // Assume no rotation, x and y scales are equal
+   return t.m11();
 }
