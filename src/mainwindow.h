@@ -4,6 +4,7 @@
 #include <QMainWindow>
 
 #include <QColor>
+#include <QDir>
 #include <QGraphicsScene>
 #include <QLabel>
 #include <QProgressBar>
@@ -45,8 +46,13 @@ private slots:
 
    void ImageZoomSelected();
 
+   void on_saveImageButton_clicked();
+
 private:
    Ui::MainWindow* ui;
+
+   QDir    currentDir_;
+   QString currentFile_;
 
    QGraphicsScene* imageScene_;
    QImage*         image_;

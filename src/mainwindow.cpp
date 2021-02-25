@@ -46,6 +46,7 @@ public:
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
+    currentDir_(),
     image_(nullptr),
     resizeInProgress_(false)
 {
@@ -164,7 +165,7 @@ void MainWindow::on_fitScreenButton_toggled(bool checked)
 void MainWindow::on_importImageButton_clicked()
 {
    QString path = QFileDialog::getOpenFileName(
-      this, tr("Import Image..."), QString(), tr("Image Files (*.png *.bmp)"));
+      this, tr("Import Image"), QString(), tr("Image Files (*.png *.bmp)"));
 
    if (!QFile::exists(path))
    {
@@ -189,6 +190,28 @@ void MainWindow::on_originalSizeButton_toggled(bool checked)
       ResizeImage();
 
       resizeInProgress_ = false;
+   }
+}
+
+void MainWindow::on_saveImageButton_clicked()
+{
+   QString path = QFileDialog::getSaveFileName(
+      this, tr("Save Image"), currentDir_.absolutePath(), tr("PNG (*.png)"));
+
+   if (!path.isNull())
+   {
+      QFileInfo fileInfo(path);
+      currentDir_  = fileInfo.absoluteDir();
+      currentFile_ = path;
+
+      if (!image_->save(path))
+      {
+         if (!image_->save(path, "PNG"))
+         {
+            QMessageBox::warning(
+               this, tr("Save Image"), tr("Error attempting to save: ") + path);
+         }
+      }
    }
 }
 
@@ -348,6 +371,10 @@ void MainWindow::OpenImage(const QString& path)
       delete newImage;
       return;
    }
+
+   QFileInfo fileInfo(path);
+   currentDir_  = fileInfo.absoluteDir();
+   currentFile_ = path;
 
    const QSize size(newImage->size());
    for (int y = 0; y < size.height(); y++)
