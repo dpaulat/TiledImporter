@@ -47,7 +47,7 @@ MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     currentDir_(),
-    image_(nullptr),
+    currentImage_(imageStack_.end()),
     resizeInProgress_(false)
 {
    ui->setupUi(this);
@@ -87,7 +87,6 @@ MainWindow::MainWindow(QWidget* parent) :
 MainWindow::~MainWindow()
 {
    delete ui;
-   delete image_;
    delete imageScene_;
    delete progressBar_;
 }
@@ -195,6 +194,11 @@ void MainWindow::on_originalSizeButton_toggled(bool checked)
 
 void MainWindow::on_saveImageButton_clicked()
 {
+   if (CurrentImage() == nullptr)
+   {
+      return;
+   }
+
    QString path = QFileDialog::getSaveFileName(
       this, tr("Save Image"), currentDir_.absolutePath(), tr("PNG (*.png)"));
 
@@ -204,9 +208,9 @@ void MainWindow::on_saveImageButton_clicked()
       currentDir_  = fileInfo.absoluteDir();
       currentFile_ = path;
 
-      if (!image_->save(path))
+      if (!CurrentImage()->save(path))
       {
-         if (!image_->save(path, "PNG"))
+         if (!CurrentImage()->save(path, "PNG"))
          {
             QMessageBox::warning(
                this, tr("Save Image"), tr("Error attempting to save: ") + path);
@@ -217,7 +221,12 @@ void MainWindow::on_saveImageButton_clicked()
 
 void MainWindow::on_transformButton_clicked()
 {
-   QImage* newImage = new QImage(*image_);
+   if (CurrentImage() == nullptr)
+   {
+      return;
+   }
+
+   std::shared_ptr<QImage> newImage(new QImage(*CurrentImage()));
 
    const QSize size(newImage->size());
    const int   iterations = ui->iterationsSpinBox->value();
@@ -280,6 +289,46 @@ void MainWindow::on_transformButton_clicked()
    thread->start();
 }
 
+void MainWindow::on_redoButton_clicked()
+{
+   if (CurrentImage() == nullptr || currentImage_ == imageStack_.begin())
+   {
+      qDebug() << "End of stack";
+      return;
+   }
+
+   currentImage_--;
+   ui->undoButton->setEnabled(true);
+
+   if (currentImage_ == imageStack_.begin())
+   {
+      ui->redoButton->setEnabled(false);
+   }
+
+   ui->imageView->scene()->clear();
+   ui->imageView->scene()->addPixmap(QPixmap::fromImage(*CurrentImage()));
+}
+
+void MainWindow::on_undoButton_clicked()
+{
+   if (CurrentImage() == nullptr || currentImage_ == imageStack_.end() - 1)
+   {
+      qDebug() << "End of stack";
+      return;
+   }
+
+   currentImage_++;
+   ui->redoButton->setEnabled(true);
+
+   if (currentImage_ == imageStack_.end() - 1)
+   {
+      ui->undoButton->setEnabled(false);
+   }
+
+   ui->imageView->scene()->clear();
+   ui->imageView->scene()->addPixmap(QPixmap::fromImage(*CurrentImage()));
+}
+
 void MainWindow::on_zoomInButton_clicked()
 {
    double scale = GetImageScale();
@@ -323,6 +372,18 @@ void MainWindow::ImageZoomSelected()
    }
 }
 
+std::shared_ptr<QImage> MainWindow::CurrentImage()
+{
+   if (currentImage_ != imageStack_.end())
+   {
+      return *currentImage_;
+   }
+   else
+   {
+      return nullptr;
+   }
+}
+
 double MainWindow::GetImageScale()
 {
    return getScale(ui->imageView->transform());
@@ -359,8 +420,8 @@ int MainWindow::GetMooreNeighborsAlive(const QImage& image, int x, int y)
 
 void MainWindow::OpenImage(const QString& path)
 {
-   QImage*    newImage = new QImage(path);
-   QImage     image(path);
+   std::shared_ptr<QImage> newImage(new QImage(path));
+
    QSet<QRgb> colors;
 
    if (newImage->isNull())
@@ -368,7 +429,6 @@ void MainWindow::OpenImage(const QString& path)
       QMessageBox::warning(
          this, tr("Import Image"), tr("Invalid image:\n") + path);
       qWarning("Invalid image: " + path.toUtf8());
-      delete newImage;
       return;
    }
 
@@ -434,6 +494,9 @@ void MainWindow::OpenImage(const QString& path)
    ui->imageSizeLabel->setText(tr("Image size: ") +
                                QString::number(size.width()) + "x" +
                                QString::number(size.height()));
+
+   imageStack_.clear();
+   currentImage_ = imageStack_.end();
 
    UpdateImage(newImage);
 
@@ -509,11 +572,11 @@ void MainWindow::SetImageZoom(int zoom)
    }
 }
 
-void MainWindow::TransformImage(QPromise<void>& promise,
-                                QImage*         image,
-                                const QColor&   newAliveColor,
-                                const QColor&   newDeadColor,
-                                size_t          iterations)
+void MainWindow::TransformImage(QPromise<void>&         promise,
+                                std::shared_ptr<QImage> image,
+                                const QColor&           newAliveColor,
+                                const QColor&           newDeadColor,
+                                size_t                  iterations)
 {
    const QSize size(image->size());
    const int   aliveNeighborsAllowed = ui->aliveNeighborsBox->value();
@@ -562,14 +625,32 @@ void MainWindow::TransformImage(QPromise<void>& promise,
    }
 }
 
-void MainWindow::UpdateImage(QImage* newImage)
+void MainWindow::UpdateImage(std::shared_ptr<QImage> newImage)
 {
    ui->imageView->scene()->clear();
    ui->imageView->scene()->addPixmap(QPixmap::fromImage(*newImage));
 
-   QImage* oldImage = image_;
-   image_           = newImage;
-   delete oldImage;
+   // Remove newer images in the stack
+   while (imageStack_.size() > 0 && currentImage_ != imageStack_.begin())
+   {
+      qDebug() << "Removing image from front: "
+               << QString::number((uintptr_t)(imageStack_.front().get()), 16);
+      imageStack_.pop_front();
+   }
+
+   imageStack_.push_front(newImage);
+   currentImage_ = imageStack_.begin();
+
+   // Limit undo size to 10
+   if (imageStack_.size() > 10)
+   {
+      qDebug() << "Removing image from back: "
+               << QString::number((uintptr_t)(imageStack_.back().get()), 16);
+      imageStack_.pop_back();
+   }
+
+   ui->undoButton->setEnabled(imageStack_.size() > 1);
+   ui->redoButton->setEnabled(false);
 }
 
 static double getLuminance(const QColor& color)

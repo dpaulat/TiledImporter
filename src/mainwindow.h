@@ -12,12 +12,16 @@
 #include <QSlider>
 #include <QToolButton>
 
+#include <deque>
+
 QT_BEGIN_NAMESPACE
 namespace Ui
 {
 class MainWindow;
 }
 QT_END_NAMESPACE
+
+typedef std::deque<std::shared_ptr<QImage>> QImagePtrDeque;
 
 class MainWindow : public QMainWindow
 {
@@ -39,14 +43,15 @@ private slots:
    void on_fitScreenButton_toggled(bool checked);
    void on_importImageButton_clicked();
    void on_originalSizeButton_toggled(bool checked);
+   void on_saveImageButton_clicked();
    void on_transformButton_clicked();
+   void on_redoButton_clicked();
+   void on_undoButton_clicked();
    void on_zoomInButton_clicked();
    void on_zoomOutButton_clicked();
    void on_zoomSlider_sliderMoved(int position);
 
    void ImageZoomSelected();
-
-   void on_saveImageButton_clicked();
 
 private:
    Ui::MainWindow* ui;
@@ -55,7 +60,9 @@ private:
    QString currentFile_;
 
    QGraphicsScene* imageScene_;
-   QImage*         image_;
+
+   QImagePtrDeque           imageStack_;
+   QImagePtrDeque::iterator currentImage_;
 
    QProgressBar* progressBar_;
 
@@ -64,16 +71,18 @@ private:
 
    bool resizeInProgress_;
 
+   std::shared_ptr<QImage> CurrentImage();
+
    double GetImageScale();
    int    GetMooreNeighborsAlive(const QImage& image, int x, int y);
    void   ResizeImage();
    void   SetAliveDeadColors(QColor aliveColor, QColor deadColor);
    void   SetImageZoom(int zoom);
-   void   TransformImage(QPromise<void>& promise,
-                         QImage*         image,
-                         const QColor&   newAliveColor,
-                         const QColor&   newDeadColor,
-                         size_t          iterations);
-   void   UpdateImage(QImage* newImage);
+   void   TransformImage(QPromise<void>&         promise,
+                         std::shared_ptr<QImage> image,
+                         const QColor&           newAliveColor,
+                         const QColor&           newDeadColor,
+                         size_t                  iterations);
+   void   UpdateImage(std::shared_ptr<QImage> newImage);
 };
 #endif // MAINWINDOW_H
